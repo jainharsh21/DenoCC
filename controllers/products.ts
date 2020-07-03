@@ -1,5 +1,11 @@
+import { Client } from "https://deno.land/x/postgres/mod.ts";
 import { v4 } from "https://deno.land/std/uuid/mod.ts";
 import { Product } from "../types.ts";
+import { dbCreds } from "../config.ts";
+
+// Init Client
+
+const client = new Client(dbCreds);
 
 let products: Product[] = [
   {
@@ -60,6 +66,7 @@ const addProduct = async ({
   response: any;
 }) => {
   const body = await request.body();
+  const product = body.value;
   if (!request.hasBody) {
     response.status = 400;
     response.body = {
@@ -67,14 +74,28 @@ const addProduct = async ({
       msg: "Body Not Found",
     };
   } else {
-    const product: Product = body.value;
-    product.id = v4.generate();
-    products.push(product);
-    response.status = 201;
-    response.body = {
-      success: true,
-      data: product,
-    };
+    try {
+      await client.connect();
+      const result = await client.query(
+        "INSERT INTO products(name,description,price)VALUES($1,$2,$3)",
+        product.name,
+        product.description,
+        product.price
+      );
+      response.status = 201;
+      response.body = {
+        success: true,
+        data: product,
+      };
+    } catch (err) {
+      response.status = 500;
+      response.body = {
+        success: false,
+        msg: err.toString(),
+      };
+    } finally {
+      await client.end();
+    }
   }
 };
 
@@ -119,12 +140,12 @@ const deleteProduct = ({
   params: { id: string };
   response: any;
 }) => {
-  products = products.filter(p=>p.id !== params.id)
+  products = products.filter((p) => p.id !== params.id);
   response.body = {
-    success : true,
-    msg : "Product Deleted",
-    data : products
-  }
+    success: true,
+    msg: "Product Deleted",
+    data: products,
+  };
 };
 
 export { getProducts, getProduct, addProduct, updateProduct, deleteProduct };
