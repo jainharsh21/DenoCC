@@ -28,33 +28,80 @@ let products: Product[] = [
   },
 ];
 
-const getProducts = ({ response }: { response: any }) => {
-  response.body = {
-    success: true,
-    data: products,
-  };
+const getProducts = async ({ response }: { response: any }) => {
+  try {
+    await client.connect();
+
+    const result = await client.query("SELECT * FROM products");
+
+    const products = new Array();
+
+    result.rows.map((p) => {
+      let obj: any = new Object();
+
+      result.rowDescription.columns.map((el, i) => {
+        obj[el.name] = p[i];
+      });
+
+      products.push(obj);
+    });
+
+    response.body = {
+      success: true,
+      data: products,
+    };
+  } catch (err) {
+    response.status = 500;
+    response.body = {
+      success: false,
+      msg: err.toString(),
+    };
+  } finally {
+    await client.end();
+  }
 };
 
-const getProduct = ({
+const getProduct = async({
   params,
   response,
 }: {
   params: { id: string };
   response: any;
 }) => {
-  const product: Product | undefined = products.find((p) => p.id === params.id);
-  if (product) {
-    response.status = 200;
-    response.body = {
-      success: true,
-      data: product,
-    };
-  } else {
-    response.status = 404;
+  try {
+    await client.connect()
+
+    const result = await client.query("SELECT * FROM products WHERE id = $1",params.id)
+
+    if(result.rows.toString() === ""){
+      response.status = 404
+      response.body = {
+        success : false,
+        msg : `No product with the id of ${params.id} found` 
+      }
+      return
+    }
+    else{
+      const product : any = new Object()
+      result.rows.map(p=>{
+        result.rowDescription.columns.map((el,i)=>{
+          product[el.name] = p[i] 
+        })
+      })
+
+      response.body = {
+        success : true,
+        data : product
+      }
+    }
+  } catch (err) {
+    response.status = 500;
     response.body = {
       success: false,
-      msg: "Product Not Fount",
+      msg: err.toString(),
     };
+  } finally {
+    await client.end();
   }
 };
 
